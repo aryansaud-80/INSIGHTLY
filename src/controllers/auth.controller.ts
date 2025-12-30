@@ -11,6 +11,14 @@ import {
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import type { dataType } from "../types/type.js";
+import jwt, { type JwtPayload } from "jsonwebtoken";
+
+const Options = {
+  httpOnly: true,
+  sameSite: "strict" as const,
+  secure: process.env.NODE_ENV === "PRODUCTION",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
 
 export const register = asyncHandler(async (req: Request, res: Response) => {
   const data = req.body;
@@ -97,28 +105,91 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     role: user.role,
   };
 
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "PRODUCTION",
-    sameSite: "strict",
-    maxAge: 7 * 24 * 60 * 60,
-  });
+  res.cookie("refreshToken", refreshToken, Options);
 
   res
     .status(200)
     .json(
-      new ApiResponse(200, { data: userData, accessToken }, "Login successful")
+      new ApiResponse(200, { user: userData, accessToken }, "Login successful")
     );
 });
 
-export const getMe = asyncHandler(async (req: Request, res: Response) => {
+export const RefreshToken = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { refreshToken } = req.cookies;
+
+    if (!refreshToken) {
+      throw new ApiError(401, "Refresh token missing");
+    }
+
+    try {
+      const decoded = jwt.verify(
+        refreshToken,
+        process.env.REFRESH_TOKEN_SECRET!
+      ) as JwtPayload;
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded?.userId },
+      });
+
+      if (!user || !user.refreshToken) {
+        throw new ApiError(401, "Unauthorized");
+      }
+
+      if (refreshToken !== user.refreshToken) {
+        throw new ApiError(401, "Refresh token mismatch");
+      }
+
+      const newRefreshToken = generateRefreshToken(user.id);
+      const newAccessToken = generateAccessToken(user.id);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken: newRefreshToken },
+      });
+
+      const userData = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      };
+
+      res.cookie("refreshToken", newRefreshToken, Options);
+
+      res
+        .status(200)
+        .json(
+          new ApiResponse(
+            200,
+            { user: userData, accessToken: newAccessToken },
+            "Token refreshed successfully"
+          )
+        );
+    } catch (err) {
+      console.error(err);
+      throw new ApiError(401, "Invalid refresh token");
+    }
+  }
+);
+
+export const logout = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
     throw new ApiError(401, "Unauthorized");
   }
 
-  res.status(200).json(new ApiResponse(200, req.user, "Success"));
-});
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { refreshToken: null },
+  });
 
-export const updateUser = asyncHandler(
-  async (req: Request, res: Response) => {}
-);
+  res.clearCookie("refreshToken", {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "PRODUCTION",
+  });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, null, "User logged out successfully"));
+});
