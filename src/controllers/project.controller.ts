@@ -5,8 +5,7 @@ import { projectSchema } from "../schema/project.schema.js";
 import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-export const createProject = asyncHandler(
-  async (req: Request, res: Response) => {
+export const createProject = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new ApiError(401, "Not authenticated");
     }
@@ -31,8 +30,7 @@ export const createProject = asyncHandler(
     res
       .status(200)
       .json(new ApiResponse(200, project, "Project created successfully"));
-  }
-);
+});
 
 export const getProjects = asyncHandler(async (req: Request, res: Response) => {
   if (!req.user) {
@@ -52,8 +50,7 @@ export const getProjects = asyncHandler(async (req: Request, res: Response) => {
     .json(new ApiResponse(200, projects, "Projects retrieved successfully"));
 });
 
-export const getProjectById = asyncHandler(
-  async (req: Request, res: Response) => {
+export const getProjectById = asyncHandler(async (req: Request, res: Response) =>{
     if (!req.user) {
       throw new ApiError(401, "Not authenticated");
     }
@@ -78,11 +75,9 @@ export const getProjectById = asyncHandler(
     res
       .status(200)
       .json(new ApiResponse(200, project, "Project retrieved successfully"));
-  }
-);
+});
 
-export const updateProject = asyncHandler(
-  async (req: Request, res: Response) => {
+export const updateProject = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new ApiError(401, "Not authenticated");
     }
@@ -122,7 +117,31 @@ export const updateProject = asyncHandler(
     res
       .status(200)
       .json(new ApiResponse(200, project, "Project updated successfully"));
-  }
-);
+});
 
-const deleteProject = asyncHandler(async (req: Request, res: Response) => {});
+export const deleteProject = asyncHandler(async (req: Request, res: Response) => {
+    if (!req.user) {
+      throw new ApiError(401, "Not authenticated");
+    }
+
+    const { id } = req.params;
+
+    if (!id) {
+      throw new ApiError(400, "Project ID is required");
+    }
+
+    const project = await prisma.project.delete({
+      where: {
+        id,
+        userId: req.user.id,
+      },
+    });
+
+    if (!project) {
+      throw new ApiError(404, "Project not found");
+    }
+
+    res
+      .status(200)
+      .json(new ApiResponse(200, project, "Project deleted successfully"));
+});

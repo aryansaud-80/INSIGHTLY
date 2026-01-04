@@ -2,6 +2,7 @@ import { Router } from "express";
 import auth from "../middleware/auth.middleware.js";
 import {
   createProject,
+  deleteProject,
   getProjectById,
   getProjects,
   updateProject,
@@ -11,6 +12,10 @@ const router = Router();
 
 router.route("/create").post(auth, createProject);
 router.route("/projects").get(auth, getProjects);
-router.route("/project/:id").get(auth, getProjectById).put(auth, updateProject);
+router
+  .route("/project/:id")
+  .get(auth, getProjectById)
+  .put(auth, updateProject)
+  .delete(auth, deleteProject);
 
 export default router;
