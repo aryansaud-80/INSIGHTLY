@@ -91,5 +91,25 @@ export const updateProject = asyncHandler(async (req, res) => {
         .status(200)
         .json(new ApiResponse(200, project, "Project updated successfully"));
 });
-const deleteProject = asyncHandler(async (req, res) => { });
+export const deleteProject = asyncHandler(async (req, res) => {
+    if (!req.user) {
+        throw new ApiError(401, "Not authenticated");
+    }
+    const { id } = req.params;
+    if (!id) {
+        throw new ApiError(400, "Project ID is required");
+    }
+    const project = await prisma.project.delete({
+        where: {
+            id,
+            userId: req.user.id,
+        },
+    });
+    if (!project) {
+        throw new ApiError(404, "Project not found");
+    }
+    res
+        .status(200)
+        .json(new ApiResponse(200, project, "Project deleted successfully"));
+});
 //# sourceMappingURL=project.controller.js.map
