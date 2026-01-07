@@ -36,6 +36,7 @@ export const connectSocialAccount = asyncHandler(
 
     const existingAccount = await prisma.socialAccount.findFirst({
       where: {
+        projectId: project.id,
         platform: platform.toUpperCase() as any,
         platformUserId: mockAccount?.platformUserId ?? "",
       },
@@ -93,7 +94,112 @@ export const connectSocialAccount = asyncHandler(
     res
       .status(201)
       .json(
-        new ApiResponse(201, result, "Social account connected successfully")
+        new ApiResponse(201, result, "Social account connected successfully"),
       );
-  }
+  },
 );
+
+export const removeSocialAccount = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) throw new ApiError(401, "Unauthorized");
+
+    const { id, projectId } = req.params;
+
+    if (!id || !projectId) throw new ApiError(400, "Invalid ID or Project ID");
+
+    // Step 1: Check project ownership
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) throw new ApiError(404, "Project not found");
+
+    if (project.userId.trim() !== req.user.id.trim()) {
+      throw new ApiError(
+        403,
+        "Unauthorized: This project does not belong to you",
+      );
+    }
+
+    // Step 2: Check social account under this project
+    const account = await prisma.socialAccount.findFirst({
+      where: { id, projectId },
+    });
+
+    if (!account) throw new ApiError(404, "Social account not found");
+
+    // Step 3: Safe to delete
+    await prisma.socialAccount.delete({ where: { id } });
+
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, account, "Social account removed successfully"),
+      );
+  },
+);
+
+export const getSocialAccountById = asyncHandler(
+  async (req: Request, res: Response) => {
+    if (!req.user) throw new ApiError(401, "Unauthorized");
+
+    const { id, projectId } = req.params;
+
+    if (!id || !projectId) throw new ApiError(400, "Invalid ID or Project ID");
+
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+    });
+
+    if (!project) throw new ApiError(404, "Project not found");
+
+    if (project.userId.tirm() !== req.user.id.trim())
+      throw new ApiError(
+        403,
+        "Unauthorized: This project does not belong to you",
+      );
+
+    const account = await prisma.socialAccount.findFirst({
+      where: { id, projectId },
+    });
+
+    if (!account) throw new ApiError(404, "Social account not found");
+    
+    
+    res
+      .status(200)
+      .json(
+        new ApiResponse(200, account, "Social account removed successfully"),
+      );
+  },
+);
+
+export const getSocialAccountsByProjectId = asyncHandler(async (req: Request, res: Response) => {
+  if (!req.user) throw new ApiError(401, "Unauthorized");
+
+  const { projectId } = req.params;
+
+  if (!projectId) throw new ApiError(400, "Invalid Project ID");
+
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+  });
+
+  if (!project) throw new ApiError(404, "Project not found");
+
+  if (project.userId.trim() !== req.user.id.trim())
+    throw new ApiError(
+      403,
+      "Unauthorized: This project does not belong to you",
+    );
+
+  const accounts = await prisma.socialAccount.findMany({
+    where: { projectId },
+  });
+
+  res
+    .status(200)
+    .json(
+      new ApiResponse(200, accounts, "Social accounts retrieved successfully"),
+    );
+});
