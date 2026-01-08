@@ -64,14 +64,12 @@ export const register = asyncHandler(async (req: Request, res: Response) => {
 
 export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   const data = req.body;
+  console.log(data);
 
   const validData = loginSchema.safeParse(data);
 
   if (!validData.success) {
-    throw new ApiError(
-      400,
-      "Validation failed: " + JSON.stringify(validData.error.message)
-    );
+    throw new ApiError(400, "Validation failed: ", validData.error.issues);
   }
 
   const { email, password } = validData.data;
@@ -79,6 +77,8 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { email },
   });
+
+  console.log(user);
 
   if (!user) {
     throw new ApiError(400, "Invalid email");
@@ -90,8 +90,12 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     throw new ApiError(400, "Wrong password");
   }
 
+  console.log(isPassValid);
+
   const accessToken = generateAccessToken(user.id);
   const refreshToken = generateRefreshToken(user.id);
+
+  console.log(accessToken, refreshToken);
 
   await prisma.user.update({
     where: { id: user.id },
@@ -105,12 +109,14 @@ export const loginUser = asyncHandler(async (req: Request, res: Response) => {
     role: user.role,
   };
 
-  res.cookie("refreshToken", refreshToken, Options);
+  console.log(userData);
 
+  res.cookie("refreshToken", refreshToken, Options);
+  console.log("Cookie set!");
   res
     .status(200)
     .json(
-      new ApiResponse(200, { user: userData, accessToken }, "Login successful")
+      new ApiResponse(200, { user: userData, accessToken }, "Login successful"),
     );
 });
 
@@ -125,7 +131,7 @@ export const RefreshToken = asyncHandler(
     try {
       const decoded = jwt.verify(
         refreshToken,
-        process.env.REFRESH_TOKEN_SECRET!
+        process.env.REFRESH_TOKEN_SECRET!,
       ) as JwtPayload;
 
       const user = await prisma.user.findUnique({
@@ -163,14 +169,14 @@ export const RefreshToken = asyncHandler(
           new ApiResponse(
             200,
             { user: userData, accessToken: newAccessToken },
-            "Token refreshed successfully"
-          )
+            "Token refreshed successfully",
+          ),
         );
     } catch (err) {
       console.error(err);
       throw new ApiError(401, "Invalid refresh token");
     }
-  }
+  },
 );
 
 export const logout = asyncHandler(async (req: Request, res: Response) => {
